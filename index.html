@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GD Demon Rating</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+<h1>Рейтинг сложнейших демонов Брянской области</h1>
+</header>
+
+<main>
+<section class="controls">
+  <button id="addBtn">➕ Добавить уровень</button>
+  <button id="syncGdlBtn" onclick="syncWithGDL()" style="display: none; background: #2196f3;">🌍 Синхронизировать с GDL</button>
+  <button id="showAllVictorsBtn">👑 Все победители</button>
+</section>
+
+<section>
+<h2>Топ-лист</h2>
+<ul id="levelList"></ul>
+</section>
+
+<section class="player-rating-section">
+  <h2>🏆 Рейтинг игроков</h2>
+  
+  <div class="rating-controls">
+    <button onclick="recalculateAllRatingsSimple()" style="background: #ff9800;">
+    🔄 Пересчитать рейтинг
+    </button>
+    <button onclick="showPointsInfo()" style="background: #2196f3;">
+      ℹ️ Как считаются очки?
+    </button>
+  </div>
+  
+  <div class="rating-filters">
+    <div class="filter-controls">
+      <button onclick="toggleAllPlayers()" style="background: #2196f3; margin-bottom: 10px;">
+        🎮 Показать всех
+      </button>
+      <button onclick="clearAllPlayers()" style="background: #666; margin-bottom: 10px;">
+        ❌ Очистить выбор
+      </button>
+    </div>
+    
+    <div class="players-checkboxes" id="playersCheckboxes">
+      <!-- Чекбоксы игроков появятся здесь динамически -->
+      <div class="loading-checkboxes">Загрузка игроков...</div>
+    </div>
+  </div>
+  
+  <div class="ratings-list" id="playerRatingsList">
+    <!-- Список игроков появится здесь -->
+  </div>
+</section>
+
+<!-- Секция Машины времени -->
+<section class="timeline-section">
+  <h2>⏰ Машина времени</h2>
+  
+  <div class="timeline-controls">
+    <div class="timeline-controls-row">
+      <button onclick="createTimelineSnapshot()" style="background: #9c27b0; display: none;">
+        📸 Сделать снимок сейчас
+      </button>
+      <button onclick="toggleTimelineView()" style="background: #2196f3;">
+        📅 Просмотр по датам
+      </button>
+      <button onclick="exitTimelineMode()" style="background: #e53935; display: none;" id="exitTimelineBtn">
+        🚪 Выйти из режима истории
+      </button>
+    </div>
+  </div>
+  
+  <div class="timeline-filters" id="timelineFilters" style="display: none;">
+    <div class="date-selector">
+      <h4>Выберите дату для просмотра:</h4>
+      <input type="date" 
+             id="historyDate" 
+             onchange="loadDateSnapshot()"
+             max="">
+      <button onclick="loadYesterday()" style="background: #666; margin-left: 10px;">
+        ◀️ Вчера
+      </button>
+      <button onclick="loadToday()" style="background: #4caf50; margin-left: 5px;">
+        Сегодня ▶️
+      </button>
+    </div>
+    
+    <div class="date-navigation">
+      <button onclick="prevDay()">◀️ Предыдущий день</button>
+      <button onclick="nextDay()">Следующий день ▶️</button>
+    </div>
+    
+    <div class="timeline-calendar" id="timelineCalendar">
+      <!-- Календарь с доступными датами появится здесь -->
+    </div>
+  </div>
+  
+  <div class="current-timeline-info" id="currentTimelineInfo" style="display: none;">
+    <!-- Информация о текущей просматриваемой дате -->
+  </div>
+</section>
+</main>
+
+<!-- Модальное окно для конкретного уровня -->
+<div id="victorsModal" class="modal">
+  <div class="modal-content">
+    <h3>Победители уровня: <span id="currentLevelName"></span></h3>
+    
+    <div class="victors-list" id="victorsList">
+      <!-- Список победителей появится здесь -->
+    </div>
+    
+    <div class="add-victor-form">
+      <h4>Добавить победителя</h4>
+      <input type="text" id="playerNameInput" placeholder="Имя игрока" />
+      <input type="text" id="proofLinkInput" placeholder="Ссылка на доказательство (опционально)" />
+      <button onclick="addVictor()">➕ Добавить победителя</button>
+    </div>
+    
+    <div class="modal-buttons">
+      <button onclick="closeVictorsModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модальное окно для всех победителей -->
+<div id="allVictorsModal" class="modal">
+  <div class="modal-content">
+    <h3>👑 Все победители рейтинга</h3>
+    
+    <div class="filters">
+      <select id="levelFilter">
+        <option value="all">Все уровни</option>
+        <!-- Опции уровней загрузятся динамически -->
+      </select>
+    </div>
+    
+    <div class="all-victors-list" id="allVictorsList">
+      <!-- Список всех победителей появится здесь -->
+    </div>
+    
+    <div class="modal-buttons">
+      <button onclick="closeAllVictorsModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модальное окно с информацией о системе очков -->
+<div id="pointsInfoModal" class="modal">
+  <div class="modal-content">
+    <h3>ℹ️ Система подсчета очков</h3>
+    
+    <div class="points-info">
+      <p><strong>Новая система расчета очков:</strong></p>
+      
+      <p>Количество очков зависит от позиции уровня в рейтинге:</p>
+      <ul>
+        <li><strong>1 место:</strong> 1000 очков</li>
+        <li><strong>2-10 места:</strong> 1000 - (место - 1) × 40</li>
+        <li><strong>11-25 места:</strong> 640 - (место - 10) × 20</li>
+        <li><strong>26-50 места:</strong> 340 - (место - 25) × 8</li>
+        <li><strong>После 50 места:</strong> 0 очков</li>
+      </ul>
+      
+      <h4>Примеры:</h4>
+      <div class="examples">
+        <div class="example">
+          <span class="level-pos">1-е место:</span>
+          <span class="level-points">1000 очков</span>
+        </div>
+        <div class="example">
+          <span class="level-pos">2-е место:</span>
+          <span class="level-points">1000 - (2-1)×40 = 960 очков</span>
+        </div>
+        <div class="example">
+          <span class="level-pos">5-е место:</span>
+          <span class="level-points">1000 - (5-1)×40 = 840 очков</span>
+        </div>
+        <div class="example">
+          <span class="level-pos">10-е место:</span>
+          <span class="level-points">1000 - (10-1)×40 = 640 очков</span>
+        </div>
+        <div class="example">
+          <span class="level-pos">15-е место:</span>
+          <span class="level-points">640 - (15-10)×20 = 540 очков</span>
+        </div>
+        <div class="example">
+          <span class="level-pos">25-е место:</span>
+          <span class="level-points">640 - (25-10)×20 = 340 очков</span>
+        </div>
+        <div class="example">
+          <span class="level-pos">30-е место:</span>
+          <span class="level-points">340 - (30-25)×8 = 300 очков</span>
+        </div>
+        <div class="example">
+          <span class="level-pos">50-е место:</span>
+          <span class="level-points">340 - (50-25)×8 = 140 очков</span>
+        </div>
+      </div>
+      
+      <p class="note">📝 <strong>Примечание:</strong> Если игрок проходит несколько уровней, очки суммируются. Каждый победитель получает полные очки за уровень.</p>
+    </div>
+    
+    <div class="modal-buttons">
+      <button onclick="closePointsInfoModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
