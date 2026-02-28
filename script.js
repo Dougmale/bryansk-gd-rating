@@ -195,17 +195,25 @@ async function fetchGlobalDemonlist() {
 
         while (true) {
             const url = `https://gdl-proxy.bryansk-gr.workers.dev?limit=${limit}&offset=${offset}`;
-
             console.log(`Загружаем страницу через Worker: offset=${offset}`);
 
-            const response = await fetch(url);
-
-            if (!response.ok) {
-                console.error(`Ошибка загрузки: ${response.status}`);
-                break;
+            let result;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    console.warn(`Ошибка загрузки offset=${offset}: ${response.status}`);
+                    break;
+                }
+                const text = await response.text();
+                if (!text || text.trim() === '') {
+                    console.log(`Пустой ответ на offset=${offset}, завершаем`);
+                    break;
+                }
+                result = JSON.parse(text);
+            } catch (e) {
+                console.warn(`Ошибка парсинга на offset=${offset}:`, e.message);
+                break; // Прерываем цикл, но НЕ теряем уже загруженные уровни
             }
-
-            const result = await response.json();
 
             if (result.message === 'success') {
                 const levels = result.data?.levels || result.data || [];
@@ -215,9 +223,8 @@ async function fetchGlobalDemonlist() {
                     allLevels.push(...levels);
 
                     if (levels.length < limit) {
-                        break;
+                        break; // Последняя страница
                     }
-
                     offset += limit;
                 } else {
                     break;
@@ -229,11 +236,11 @@ async function fetchGlobalDemonlist() {
         }
 
         console.log(`Загружено ${allLevels.length} уровней из глобального рейтинга`);
-        return allLevels;
+        return allLevels; // Возвращаем что успели загрузить
 
     } catch (error) {
-        console.error('Ошибка при загрузке глобального рейтинга:', error);
-        return [];
+        console.error('Критическая ошибка при загрузке GDL:', error);
+        return allLevels; // Возвращаем что успели, а не []
     }
 }
 
@@ -1543,4 +1550,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Запускаем основное приложение
     await init();
 });
+
 
