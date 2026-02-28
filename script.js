@@ -188,13 +188,13 @@ async function sbFetch(endpoint, options = {}) {
 async function fetchGlobalDemonlist() {
     const allLevels = [];
     let offset = 0;
-    const limit = 100;
+    const limit = 500;
 
     try {
         console.log("Начинаем загрузку глобального рейтинга...");
 
         while (true) {
-            const url = `https://gdl-proxy.bryansk-gr.workers.dev?limit=${limit}&offset=${offset}`;
+            const url = `https://gdl-vercel.vercel.app/api/proxy?limit=${limit}&offset=${offset}`;
             console.log(`Загружаем страницу через Worker: offset=${offset}`);
 
             let result;
@@ -1550,5 +1550,3 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Запускаем основное приложение
     await init();
 });
-
-
