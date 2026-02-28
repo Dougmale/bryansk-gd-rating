@@ -192,24 +192,13 @@ async function fetchGlobalDemonlist() {
 
     try {
         console.log("Начинаем загрузку глобального рейтинга...");
-        
-        // Используем CORS прокси для обхода блокировок
-        const corsProxy = 'https://corsproxy.io/?';
-        // Альтернативные прокси:
-        // const corsProxy = 'https://api.allorigins.win/raw?url=';
-        // const corsProxy = 'https://cors-anywhere.herokuapp.com/';
 
         while (true) {
-            const targetUrl = `https://api.demonlist.org/level/classic/list?limit=${limit}&offset=${offset}`;
-            const url = corsProxy + encodeURIComponent(targetUrl);
-            
-            console.log(`Загружаем страницу через прокси: offset=${offset}`);
+            const url = `https://gdl-proxy.bryansk-gr.workers.dev?limit=${limit}&offset=${offset}`;
 
-            const response = await fetch(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-            });
+            console.log(`Загружаем страницу через Worker: offset=${offset}`);
+
+            const response = await fetch(url);
 
             if (!response.ok) {
                 console.error(`Ошибка загрузки: ${response.status}`);
@@ -222,7 +211,7 @@ async function fetchGlobalDemonlist() {
                 const levels = result.data?.levels || result.data || [];
 
                 if (levels.length > 0) {
-                    console.log(`Получено ${levels.length} уровней на странице`);
+                    console.log(`Получено ${levels.length} уровней`);
                     allLevels.push(...levels);
 
                     if (levels.length < limit) {
