@@ -243,37 +243,34 @@ function findGlobalPosition(levelName, creatorName) {
         return null;
     }
 
-    if (!levelName || !creatorName) {
-        console.warn('findGlobalPosition: пустые входные данные', { levelName, creatorName });
+    if (!levelName) {
+        console.warn('findGlobalPosition: пустое название уровня');
         return null;
     }
 
     const searchName = levelName.toLowerCase().trim();
-    const searchCreator = creatorName.toLowerCase().trim();
+    const searchCreator = creatorName ? creatorName.toLowerCase().trim() : null;
 
-    const exactMatch = state.globalDemonlist.find(level => {
-        if (!level || typeof level !== 'object') return false;
-        const levelNameField = level.name || '';
-        const levelCreatorField = level.creator || '';
-        return levelNameField.toLowerCase().trim() === searchName &&
-               levelCreatorField.toLowerCase().trim() === searchCreator;
-    });
-
-    if (exactMatch) {
-        return exactMatch.placement || exactMatch.position || null;
+    // Сначала пробуем точное совпадение по имени И автору (если автор есть в GDL)
+    if (searchCreator) {
+        const exactMatch = state.globalDemonlist.find(level => {
+            if (!level || typeof level !== 'object') return false;
+            const gdlName = (level.name || '').toLowerCase().trim();
+            const gdlCreator = (level.creator || '').toLowerCase().trim();
+            return gdlName === searchName && gdlCreator === searchCreator;
+        });
+        if (exactMatch) {
+            return exactMatch.placement || exactMatch.position || null;
+        }
     }
 
+    // Fallback: только по названию (API list не возвращает creator)
     const nameMatch = state.globalDemonlist.find(level => {
         if (!level || typeof level !== 'object') return false;
-        const levelNameField = level.name || '';
-        return levelNameField.toLowerCase().trim() === searchName;
+        return (level.name || '').toLowerCase().trim() === searchName;
     });
 
-    if (nameMatch) {
-        return nameMatch.placement || nameMatch.position || null;
-    }
-
-    return null;
+    return nameMatch ? (nameMatch.placement || nameMatch.position || null) : null;
 }
 
 // ==========================================
@@ -1546,3 +1543,4 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Запускаем основное приложение
     await init();
 });
+
