@@ -1,5 +1,0 @@
-[[redirects]]
-  from = "/api/gdl/*"
-  to = "https://api.demonlist.org/:splat"
-  status = 200
-  force = true
