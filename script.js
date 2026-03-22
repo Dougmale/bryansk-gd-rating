@@ -14,8 +14,11 @@ const state = {
     currentLevelIdForModal: null,
     selectedPlayers: new Set(),
     globalDemonlist: [],
-    globalDemonlistLoaded: false
+    globalDemonlistLoaded: false,
+    ratingType: 't50'
 };
+
+const BASE_API_URL = 'https://api.demonlist.org';
 
 // ==========================================
 // 2. АВТОРИЗАЦИЯ АДМИНИСТРАТОРА
@@ -195,7 +198,7 @@ async function fetchGlobalDemonlist() {
 
         while (true) {
             const url = `https://gdl-vercel.vercel.app/api/proxy?limit=${limit}&offset=${offset}`;
-            console.log(`Загружаем страницу через Worker: offset=${offset}`);
+            console.log(`Загружаем страницу через Vercel-прокси: offset=${offset}`);
 
             let result;
             try {
@@ -250,46 +253,88 @@ function findGlobalPosition(levelName, creatorName) {
         return null;
     }
 
-    if (!levelName) {
-        console.warn('findGlobalPosition: пустое название уровня');
-        return null;
+    const searchName = levelName.toLowerCase().trim();
+    const searchCreator = creatorName ? creatorName.toLowerCase().trim() : null;
+
+    // Точное совпадение имени и автора
+    let match = state.globalDemonlist.find(level => 
+        level.name?.toLowerCase().trim() === searchName &&
+        level.creator?.toLowerCase().trim() === searchCreator
+    );
+    if (match) return match.placement || null;
+
+    // Только по имени
+    match = state.globalDemonlist.find(level => 
+        level.name?.toLowerCase().trim() === searchName
+    );
+    if (match) return match.placement || null;
+
+    // Удаляем возможные метки в скобках [something] или (something)
+    const cleanName = searchName.replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim();
+    if (cleanName !== searchName) {
+        match = state.globalDemonlist.find(level => 
+            level.name?.toLowerCase().trim() === cleanName
+        );
+        if (match) return match.placement || null;
+    }
+
+    return null;
+}
+
+function findGlobalLevelPoints(levelName, creatorName) {
+    if (!state.globalDemonlist || !Array.isArray(state.globalDemonlist) || state.globalDemonlist.length === 0) {
+        return 0;
     }
 
     const searchName = levelName.toLowerCase().trim();
     const searchCreator = creatorName ? creatorName.toLowerCase().trim() : null;
 
-    // Сначала пробуем точное совпадение по имени И автору (если автор есть в GDL)
-    if (searchCreator) {
-        const exactMatch = state.globalDemonlist.find(level => {
-            if (!level || typeof level !== 'object') return false;
-            const gdlName = (level.name || '').toLowerCase().trim();
-            const gdlCreator = (level.creator || '').toLowerCase().trim();
-            return gdlName === searchName && gdlCreator === searchCreator;
-        });
-        if (exactMatch) {
-            return exactMatch.placement || exactMatch.position || null;
-        }
+    // Точное совпадение имени и автора
+    let match = state.globalDemonlist.find(level => 
+        level.name?.toLowerCase().trim() === searchName &&
+        (searchCreator ? level.creator?.toLowerCase().trim() === searchCreator : true)
+    );
+    if (match) return parseFloat(match.points) || 0;
+
+    // Только по имени
+    match = state.globalDemonlist.find(level => 
+        level.name?.toLowerCase().trim() === searchName
+    );
+    if (match) return parseFloat(match.points) || 0;
+
+    // Удаляем возможные метки в скобках
+    const cleanName = searchName.replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim();
+    if (cleanName !== searchName) {
+        match = state.globalDemonlist.find(level => 
+            level.name?.toLowerCase().trim() === cleanName
+        );
+        if (match) return parseFloat(match.points) || 0;
     }
 
-    // Fallback: только по названию (API list не возвращает creator)
-    const nameMatch = state.globalDemonlist.find(level => {
-        if (!level || typeof level !== 'object') return false;
-        return (level.name || '').toLowerCase().trim() === searchName;
-    });
-
-    return nameMatch ? (nameMatch.placement || nameMatch.position || null) : null;
+    return 0;
 }
 
 // ==========================================
 // 4. ЛОГИКА ПОДСЧЕТА ОЧКОВ
 // ==========================================
 
+// function calculatePoints(rank) {
+//     if (rank === 1) return 1000;
+//     if (rank >= 2 && rank <= 10) return 1000 - (rank - 1) * 40;
+//     if (rank >= 11 && rank <= 25) return 640 - (rank - 10) * 20;
+//     if (rank >= 26 && rank <= 50) return 340 - (rank - 25) * 8;
+//     return 0;
+// }
+
 function calculatePoints(rank) {
-    if (rank === 1) return 1000;
-    if (rank >= 2 && rank <= 10) return 1000 - (rank - 1) * 40;
-    if (rank >= 11 && rank <= 25) return 640 - (rank - 10) * 20;
-    if (rank >= 26 && rank <= 50) return 340 - (rank - 25) * 8;
-    return 0;
+    if (!rank || rank <= 0) return 0;
+    if (rank > 150) return 15; // Фиксированный бонус за экстримы вне топа
+
+    // Формула экспоненциального затухания.
+    // 0.028 - это коэффициент падения. Чем он больше, тем быстрее падают баллы.
+    const points = 1000 * Math.exp(-0.028 * (rank - 1));
+
+    return Math.round(points);
 }
 
 function getRankColorClass(rank) {
@@ -328,6 +373,29 @@ function calculatePlayerRatings() {
     return Object.values(playerStats).sort((a, b) => b.points - a.points);
 }
 
+function calculatePlayerRatingsGDL() {
+    const playerStats = {};
+
+    state.victors.forEach(victor => {
+        const level = state.levels.find(l => l.id === victor.level_id);
+        if (!level) return; // уровень удалён
+
+        let points = findGlobalLevelPoints(level.name, level.creator);
+        points = parseFloat(points) || 0; // дополнительная страховка
+        if (points === 0) return; // уровень не найден в GDL или очки = 0
+
+        const name = victor.player_name.trim();
+
+        if (!playerStats[name]) {
+            playerStats[name] = { name, points: 0, levelsBeat: 0 };
+        }
+        playerStats[name].points += points; // теперь точно число
+        playerStats[name].levelsBeat += 1;
+    });
+
+    return Object.values(playerStats).sort((a, b) => b.points - a.points);
+}
+
 // ==========================================
 // 5. ИНИЦИАЛИЗАЦИЯ И ЗАГРУЗКА
 // ==========================================
@@ -352,9 +420,12 @@ async function init() {
         }
 
         state.globalDemonlistLoaded = true;
+        renderPlayerRatings();
 
         renderLevels();
         setupEventListeners();
+        updateRatingButtonsActive();
+        
         console.log("Приложение полностью загружено");
     } catch (e) {
         console.error("Ошибка инициализации:", e);
@@ -544,11 +615,11 @@ function renderLevels() {
 
             li.innerHTML = `
                 <div>
-                    <strong>#${level.position} - ${escapeHtml(level.name)}</strong> 
+                    <strong>#${level.position} ${escapeHtml(level.name)}</strong> 
                     by ${escapeHtml(level.creator)}
                     ${globalPosText}
-                    <div style="font-size: 0.8em; color: #4caf50; margin-top: 4px;">
-                        Награда: ${points} очков
+                    <div style="font-size: 0.8em; color: #e5be37; margin-top: 4px;">
+                        ⭐ ${points} баллов
                     </div>
                     ${filterInfo}
                 </div>
@@ -572,30 +643,57 @@ function renderPlayerRatings() {
     const container = document.getElementById('playerRatingsList');
     container.innerHTML = '';
 
-    const sortedPlayers = calculatePlayerRatings();
+    let sortedPlayers;
+    if (state.ratingType === 'gdl') {
+        if (!state.globalDemonlistLoaded) {
+            container.innerHTML = '<div class="empty-rating">Загрузка GDL...</div>';
+            return;
+        }
+        sortedPlayers = calculatePlayerRatingsGDL();
+    } else {
+        sortedPlayers = calculatePlayerRatings(); // T50
+    }
 
     if (sortedPlayers.length === 0) {
-        container.innerHTML = '<div class="empty-rating">Пока нет данных</div>';
+        container.innerHTML = '<div class="empty-rating">Нет данных</div>';
         return;
     }
 
     let displayedCount = 0;
-
     sortedPlayers.forEach((player, index) => {
+        // Пропускаем игроков, которые не выбраны в фильтре
         if (state.selectedPlayers.size > 0 && !state.selectedPlayers.has(player.name)) {
-            return;
+            return; 
         }
-
+        
         displayedCount++;
         const rank = index + 1;
         const colorClass = getRankColorClass(rank);
 
         const div = document.createElement('div');
         div.className = 'rank-item';
+        
+        // Добавляем клик для открытия профиля
+        div.style.cursor = 'pointer';
+        div.onclick = () => {
+            if (typeof window.openPlayerProfile === 'function') {
+                window.openPlayerProfile(player.name);
+            } else {
+                console.error("Функция openPlayerProfile не найдена!");
+            }
+        };
 
         if (state.selectedPlayers.has(player.name)) {
             div.style.border = '1px solid #4caf50';
             div.style.background = '#2a2a35';
+        }
+
+        // Форматируем баллы в зависимости от типа рейтинга
+        let pointsFormatted;
+        if (state.ratingType === 'gdl') {
+            pointsFormatted = Number(player.points).toFixed(2); // Оставляем дробную часть
+        } else {
+            pointsFormatted = Math.round(Number(player.points)); // Округляем до целого для T50
         }
 
         div.innerHTML = `
@@ -603,8 +701,8 @@ function renderPlayerRatings() {
                 <div class="rank-number">#${rank}</div>
                 <div class="rank-name">${escapeHtml(player.name)}</div>
                 <div class="rank-stats">
-                    <span class="rank-points ${colorClass}">${player.points.toFixed(0)} pts</span>
-                    <span class="rank-levels">Демонов: ${player.levelsBeat}</span>
+                    <span class="rank-points ${colorClass}">${pointsFormatted} баллов</span>
+                    <span class="rank-levels">😈 Демонов: ${player.levelsBeat}</span>
                 </div>
             </div>
         `;
@@ -613,6 +711,18 @@ function renderPlayerRatings() {
 
     if (displayedCount === 0 && state.selectedPlayers.size > 0) {
         container.innerHTML = '<div style="padding:15px; text-align:center;">Выбранные игроки не найдены в рейтинге.</div>';
+    }
+}
+
+function updateRatingButtonsActive() {
+    const t50Btn = document.getElementById('ratingT50Btn');
+    const gdlBtn = document.getElementById('ratingGDLBtn');
+    if (state.ratingType === 't50') {
+        t50Btn.classList.add('active');
+        gdlBtn.classList.remove('active');
+    } else {
+        gdlBtn.classList.add('active');
+        t50Btn.classList.remove('active');
     }
 }
 
@@ -827,6 +937,105 @@ window.syncWithGDL = async () => {
 // ==========================================
 // 8. МОДАЛЬНЫЕ ОКНА
 // ==========================================
+
+window.openPlayerProfile = (playerName) => {
+    document.getElementById('profilePlayerName').innerText = playerName;
+    
+    // Получаем все прохождения этого игрока
+    const playerVictories = state.victors.filter(v => v.player_name.trim() === playerName);
+    
+    const listContainer = document.getElementById('profileDemonsList');
+    const hardestContainer = document.getElementById('profileHardestDemon');
+    const countContainer = document.getElementById('profileDemonsCount');
+    
+    listContainer.innerHTML = '';
+    countContainer.innerText = playerVictories.length;
+    
+    if (playerVictories.length === 0) {
+        listContainer.innerHTML = '<div class="empty-victors">Нет пройденных уровней</div>';
+        hardestContainer.innerHTML = '<span style="color:#aaa;">Нет данных</span>';
+        document.getElementById('playerProfileModal').style.display = 'flex';
+        return;
+    }
+
+    // Собираем инфу об уровнях и считаем очки в зависимости от текущего режима (T50 или GDL)
+    const beatenLevels = playerVictories.map(v => {
+        const level = state.levels.find(l => l.id === v.level_id);
+        if (!level) return null;
+        
+        let points = 0;
+        let positionText = '';
+        
+        if (state.ratingType === 'gdl') {
+            points = findGlobalLevelPoints(level.name, level.creator) || 0;
+            const gdlPos = findGlobalPosition(level.name, level.creator);
+            positionText = gdlPos ? `(GDL #${gdlPos})` : '(GDL: —)';
+        } else {
+            points = calculatePoints(level.position);
+            positionText = `(TOP #${level.position})`;
+        }
+
+        return {
+            ...level,
+            points: points,
+            positionText: positionText,
+            victory_date: v.victory_date,
+            proof_link: v.proof_link
+        };
+    }).filter(l => l !== null);
+
+    // Сортируем уровни по очкам (по убыванию), чтобы сложнейший был первым
+    beatenLevels.sort((a, b) => b.points - a.points);
+    
+    // --- Выводим сложнейший демон ---
+    const hardest = beatenLevels[0];
+    if (hardest) {
+        hardestContainer.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                <div>
+                    <strong style="color: #4fc3f7; font-size: 1.2em;">${escapeHtml(hardest.name)}</strong> 
+                    <span style="color: #aaa; font-size: 0.9em; margin-left: 5px;">${hardest.positionText}</span>
+                </div>
+                <div style="color: #f26c39; font-weight: bold; margin-top: 5px;">
+                    🔥 ${Number(hardest.points)} баллов
+                </div>
+            </div>
+        `;
+    }
+
+    // --- Выводим список всех пройденных демонов ---
+    // Меняем класс контейнера, чтобы уровни выстроились в ряд с переносом
+    listContainer.className = 'demon-badges-container';
+
+    // --- Выводим список всех пройденных демонов прямоугольниками ---
+    beatenLevels.forEach(level => {
+        // Проверяем, есть ли ссылка на пруф
+        const hasVideo = level.proof_link && level.proof_link.trim() !== '';
+        
+        // Создаем ссылку, если есть видео, или обычный текстовый блок, если нет
+        const badge = document.createElement(hasVideo ? 'a' : 'span');
+        
+        badge.className = 'demon-badge';
+        badge.textContent = level.name;
+        
+        if (hasVideo) {
+            badge.href = level.proof_link;
+            badge.target = '_blank'; // Открывать в новой вкладке
+            badge.title = 'Смотреть видео прохождения';
+        } else {
+            badge.classList.add('no-video');
+            badge.title = 'Нет видео';
+        }
+        
+        listContainer.appendChild(badge);
+    });
+
+    document.getElementById('playerProfileModal').style.display = 'flex';
+};
+
+window.closePlayerProfileModal = () => {
+    document.getElementById('playerProfileModal').style.display = 'none';
+};
 
 window.openVictorsModal = (levelId, levelName) => {
     state.currentLevelIdForModal = levelId;
@@ -1221,6 +1430,21 @@ function setupEventListeners() {
             event.target.style.display = "none";
         }
     };
+
+    // Обработчики кнопок переключения рейтинга
+    document.getElementById('ratingT50Btn').addEventListener('click', () => {
+        if (state.ratingType === 't50') return;
+        state.ratingType = 't50';
+        updateRatingButtonsActive();
+        renderPlayerRatings();
+    });
+
+    document.getElementById('ratingGDLBtn').addEventListener('click', () => {
+        if (state.ratingType === 'gdl') return;
+        state.ratingType = 'gdl';
+        updateRatingButtonsActive();
+        renderPlayerRatings();
+    });
 }
 
 window.recalculateAllRatingsSimple = () => {
@@ -1550,3 +1774,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Запускаем основное приложение
     await init();
 });
+
+console.log('GDL loaded, count:', state.globalDemonlist.length);
+console.log('First 3 GDL entries:', state.globalDemonlist.slice(0, 3));
