@@ -26,6 +26,11 @@
 <section class="player-rating-section">
   <h2>🏆 Рейтинг игроков</h2>
   
+  <div class="rating-type-buttons">
+    <button id="ratingT50Btn" class="rating-type-btn active">📊 Стандартный Рейтинг</button>
+    <button id="ratingGDLBtn" class="rating-type-btn">🌍 GDL Рейтинг</button>
+  </div>
+
   <div class="rating-controls">
     <button onclick="recalculateAllRatingsSimple()" style="background: #ff9800;">
     🔄 Пересчитать рейтинг
@@ -207,6 +212,26 @@
     
     <div class="modal-buttons">
       <button onclick="closePointsInfoModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<div id="playerProfileModal" class="modal">
+  <div class="modal-content">
+    <h3>👤 Игрок: <span id="profilePlayerName" style="color: #4fc3f7;"></span></h3>
+    
+    <div style="margin: 15px 0; padding: 15px; background: rgba(156, 39, 176, 0.15); border-left: 4px solid #9c27b0; border-radius: 8px;">
+        <h4 style="margin: 0 0 10px 0; color: #e1bee7;">🔥 Сложнейший демон:</h4>
+        <div id="profileHardestDemon">
+            </div>
+    </div>
+
+    <h4 style="margin-top: 20px;">📝 Пройденные демоны (<span id="profileDemonsCount">0</span>)</h4>
+    <div class="victors-list" id="profileDemonsList" style="max-height: 400px; overflow-y: auto;">
+      </div>
+    
+    <div class="modal-buttons">
+      <button onclick="closePlayerProfileModal()">Закрыть</button>
     </div>
   </div>
 </div>
