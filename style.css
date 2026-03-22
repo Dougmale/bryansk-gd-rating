@@ -838,3 +838,95 @@ li {
     font-size: 0.7em;
   }
 }
+
+.rating-type-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.rating-type-btn {
+  background: #2a2a3b;
+  color: white;
+  border: 1px solid #444;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95em;
+  transition: all 0.2s;
+  flex: 1; /* чтобы кнопки занимали равную ширину */
+}
+
+.rating-type-btn:hover {
+  background: #3a3a4b;
+}
+
+.rating-type-btn.active {
+  background: #ff9800;
+  border-color: #ff9800;
+  font-weight: bold;
+  color: white;
+}
+
+.rank-item {
+  background: #2a2a3b;
+  padding: 15px;
+  margin: 10px 0;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-left: 4px solid #4caf50;
+  
+  /* Исправленная анимация */
+  transition-property: transform, background-color;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
+}
+
+.rank-item:hover {
+  transform: translateY(-2px);
+  background-color: #333344;
+}
+
+
+/* ========== СТИЛИ ДЛЯ СПИСКА ДЕМОНОВ В ПРОФИЛЕ ========== */
+.demon-badges-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.demon-badge {
+  display: inline-flex;
+  align-items: center;
+  background: #1e1e2b;
+  border: 1px solid #4fc3f7; /* Голубая обводка */
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.demon-badge:hover {
+  background: #4fc3f7;
+  color: #0f0f14;
+  transform: translateY(-2px);
+}
+
+/* Стиль для уровней без видео */
+.demon-badge.no-video {
+  border-color: #444;
+  color: #aaa;
+  cursor: default;
+}
+
+.demon-badge.no-video:hover {
+  background: #1e1e2b;
+  color: #aaa;
+  transform: none;
+}
